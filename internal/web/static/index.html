@@ -3140,7 +3140,7 @@
         &middot;
         <a href="#" onclick="event.preventDefault();openDonate()" data-i18n="donate">Donate</a>
         &middot;
-        <a href="https://sartoopjj.github.io/thefeed/privacy-policy.html" target="_blank" data-i18n="privacy_policy">Privacy</a>
+        <a href="#" onclick="event.preventDefault();openPrivacy()" data-i18n="privacy_policy">Privacy</a>
       </div>
     </div>
 
@@ -3239,6 +3239,23 @@
       </div>
       <div style="margin-top:16px;text-align:end">
         <button class="btn btn-primary" onclick="closeSource()" data-i18n="close">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRIVACY POLICY MODAL -->
+  <div class="modal-overlay" id="privacyModal" onclick="if(event.target===this)closePrivacy()">
+    <div class="modal" style="max-width:440px">
+      <h2 data-i18n="privacy_policy">Privacy</h2>
+      <div data-i18n="privacy_body" style="margin-bottom:12px;color:var(--text-dim);font-size:13px">
+        Open the privacy policy from either mirror:
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <a class="btn btn-outline" href="https://sartoopjj.gitlab.io/thefeed/privacy-policy.html" target="_blank" rel="noopener" dir="ltr" style="text-align:left;justify-content:flex-start">GitLab Pages — sartoopjj.gitlab.io/thefeed</a>
+        <a class="btn btn-outline" href="https://sartoopjj.github.io/thefeed/privacy-policy.html" target="_blank" rel="noopener" dir="ltr" style="text-align:left;justify-content:flex-start">GitHub Pages — sartoopjj.github.io/thefeed</a>
+      </div>
+      <div style="margin-top:16px;text-align:end">
+        <button class="btn btn-primary" onclick="closePrivacy()" data-i18n="close">Close</button>
       </div>
     </div>
   </div>
@@ -3932,7 +3949,8 @@
         privacy_policy: 'حریم خصوصی',
         telegram: 'تلگرام',
         source_code: 'سورس کد',
-        source_body: 'thefeed یک پروژه‌ متن‌بازه. می‌تونید سورس کد رو از هر کدوم از آینه‌های زیر ببینید یا کلون کنید:',
+        source_body: 'thefeed یک پروژه‌ی متن‌بازه. سورس کد روی هر دو سرویس زیر در دسترسه:',
+        privacy_body: 'سیاست حریم خصوصی روی هر دو لینک زیر در دسترسه:',
         donate: 'حمایت مالی',
         donate_body: 'برای حمایت از من می‌تونید مبلغ دلخواه‌تون رو به صورت <b>USDT</b> یا <b>USDC</b> روی شبکه‌های زیر بفرستید: <ul style="margin:8px 0 12px 0;padding-inline-start:20px"><li>Polygon</li><li>BNB Chain</li></ul>',
         wallet_address: 'آدرس ولت',
@@ -4190,6 +4208,7 @@
         telegram: 'Telegram',
         source_code: 'Source code',
         source_body: 'thefeed is open source. You can browse or clone the repository from either mirror:',
+        privacy_body: 'Open the privacy policy from either mirror:',
         donate: 'Donate',
         donate_body: 'Send any amount in <b>USDT</b> or <b>USDC</b> on: <ul style="margin:8px 0 12px 0;padding-inline-start:20px"><li>Polygon</li><li>BNB Chain</li></ul>',
         wallet_address: 'Wallet address',
@@ -8154,6 +8173,8 @@
     function closeDonate() { document.getElementById('donateModal').classList.remove('active'); }
     function openSource() { document.getElementById('sourceModal').classList.add('active'); }
     function closeSource() { document.getElementById('sourceModal').classList.remove('active'); }
+    function openPrivacy() { document.getElementById('privacyModal').classList.add('active'); }
+    function closePrivacy() { document.getElementById('privacyModal').classList.remove('active'); }
     function copyDonateAddr() {
       var el = document.getElementById('donateAddr');
       var v = (el.dataset.full || el.textContent).trim();

@@ -327,6 +327,29 @@ android-apk:
       - artifacts/thefeed-android-*-armeabi-v7a.apk
     expire_in: 1 week
 
+# ---------- GitLab Pages ----------
+#
+# Publishes docs/ (currently privacy-policy.html + a redirect index) on
+# every tag pipeline. Site URL: https://sartoopjj.gitlab.io/thefeed/
+#
+# The job name MUST be exactly `pages` and it MUST upload an artifact
+# named `public/` — that's GitLab's contract for the Pages deployer.
+
+pages:
+  stage: package
+  image: alpine:latest
+  needs: []
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v/'
+  script:
+    - mkdir -p public
+    - cp -r docs/. public/
+    - ls -la public
+  artifacts:
+    paths:
+      - public
+    expire_in: 1 week
+
 # ---------- iOS / Catalyst (opt-in, macOS runner only) ----------
 #
 # Disabled by default so it never appears in tag pipelines that don't have
