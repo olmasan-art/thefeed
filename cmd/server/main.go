@@ -26,6 +26,7 @@ func main() {
 	domain := flag.String("domain", "", "DNS domain (e.g., t.example.com)")
 	key := flag.String("key", "", "Encryption passphrase")
 	channelsFile := flag.String("channels", "", "Path to channels file (default: {data-dir}/channels.txt)")
+	privateChannelsFile := flag.String("private-channels", "", "Path to private-channel invite-links file (default: {data-dir}/private_channels.txt; one invite link per line; requires Telegram login)")
 	xAccountsFile := flag.String("x-accounts", "", "Path to X accounts file (default: {data-dir}/x_accounts.txt)")
 	xRSSInstances := flag.String("x-rss-instances", "", "Comma-separated X RSS base URLs (e.g., https://nitter.net,http://nitter.net)")
 	apiID := flag.String("api-id", "", "Telegram API ID (optional if --no-telegram)")
@@ -78,6 +79,9 @@ func main() {
 	// Default paths relative to data directory
 	if *channelsFile == "" {
 		*channelsFile = filepath.Join(*dataDir, "channels.txt")
+	}
+	if *privateChannelsFile == "" {
+		*privateChannelsFile = filepath.Join(*dataDir, "private_channels.txt")
 	}
 	if *xAccountsFile == "" {
 		*xAccountsFile = filepath.Join(*dataDir, "x_accounts.txt")
@@ -216,12 +220,13 @@ func main() {
 	}
 
 	cfg := server.Config{
-		ListenAddr:       *listen,
-		Domain:           *domain,
-		Passphrase:       *key,
-		ChannelsFile:     *channelsFile,
-		XAccountsFile:    *xAccountsFile,
-		XRSSInstances:    *xRSSInstances,
+		ListenAddr:          *listen,
+		Domain:              *domain,
+		Passphrase:          *key,
+		ChannelsFile:        *channelsFile,
+		PrivateChannelsFile: *privateChannelsFile,
+		XAccountsFile:       *xAccountsFile,
+		XRSSInstances:       *xRSSInstances,
 		MaxPadding:       *maxPadding,
 		MsgLimit:         *msgLimit,
 		NoTelegram:       *noTelegram,

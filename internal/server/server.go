@@ -14,12 +14,13 @@ import (
 
 // Config holds server configuration.
 type Config struct {
-	ListenAddr    string
-	Domain        string
-	Passphrase    string
-	ChannelsFile  string
-	XAccountsFile string
-	XRSSInstances string
+	ListenAddr          string
+	Domain              string
+	Passphrase          string
+	ChannelsFile        string
+	PrivateChannelsFile string // optional: invite links for private channels
+	XAccountsFile       string
+	XRSSInstances       string
 	MaxPadding    int
 	MsgLimit      int  // max messages per channel (0 = default 15)
 	NoTelegram    bool // if true, fetch public channels without Telegram login
@@ -59,6 +60,7 @@ type Server struct {
 	feed             *Feed
 	reader           *TelegramReader // nil when --no-telegram
 	telegramChannels []string
+	privateInvites   []string // resolved invite hashes (post-parse)
 	xAccounts        []string
 }
 
@@ -72,15 +74,41 @@ func New(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("load X accounts: %w", err)
 	}
-
-	if len(channels) == 0 && len(xAccounts) == 0 {
-		return nil, fmt.Errorf("no channels configured in %s and no X accounts configured in %s", cfg.ChannelsFile, cfg.XAccountsFile)
+	var privateInvites []string
+	if cfg.PrivateChannelsFile != "" {
+		privateInvites, err = LoadPrivateInvites(cfg.PrivateChannelsFile)
+		if err != nil {
+			return nil, fmt.Errorf("load private channels: %w", err)
+		}
 	}
 
-	log.Printf("[server] loaded %d Telegram channels and %d X accounts", len(channels), len(xAccounts))
+	if len(channels) == 0 && len(xAccounts) == 0 && len(privateInvites) == 0 {
+		return nil, fmt.Errorf("no channels configured in %s, no private invites in %s, and no X accounts in %s",
+			cfg.ChannelsFile, cfg.PrivateChannelsFile, cfg.XAccountsFile)
+	}
 
-	feed := NewFeed(append(append([]string{}, channels...), prefixXAccounts(xAccounts)...))
-	return &Server{cfg: cfg, feed: feed, telegramChannels: channels, xAccounts: xAccounts}, nil
+	log.Printf("[server] loaded %d Telegram public channels, %d private invites, %d X accounts",
+		len(channels), len(privateInvites), len(xAccounts))
+
+	// Feed slot order: public Telegram, then private Telegram, then X.
+	// Private channels use the short hash-derived ID (privateChannelID)
+	// so caches stay stable across file reorders without bloating the
+	// DNS metadata payload. Display title is set later via
+	// SetChannelDisplayName once the channel is resolved.
+	allChannelNames := append([]string{}, channels...)
+	for _, hash := range privateInvites {
+		allChannelNames = append(allChannelNames, privateChannelID(hash))
+	}
+	allChannelNames = append(allChannelNames, prefixXAccounts(xAccounts)...)
+	feed := NewFeed(allChannelNames)
+
+	return &Server{
+		cfg:              cfg,
+		feed:             feed,
+		telegramChannels: channels,
+		privateInvites:   privateInvites,
+		xAccounts:        xAccounts,
+	}, nil
 }
 
 // Run starts both the DNS server and the Telegram reader.
@@ -145,7 +173,7 @@ func (s *Server) Run(ctx context.Context) error {
 
 	// Handle login-only mode
 	if s.cfg.Telegram.LoginOnly {
-		reader := NewTelegramReader(s.cfg.Telegram, s.telegramChannels, s.feed, 15, 1)
+		reader := NewTelegramReader(s.cfg.Telegram, s.telegramChannels, s.privateInvites, s.feed, 15, 1)
 		return reader.Run(ctx)
 	}
 
@@ -155,8 +183,8 @@ func (s *Server) Run(ctx context.Context) error {
 		if msgLimit <= 0 {
 			msgLimit = 15
 		}
-		if len(s.telegramChannels) > 0 {
-			reader := NewTelegramReader(s.cfg.Telegram, s.telegramChannels, s.feed, msgLimit, 1)
+		if len(s.telegramChannels) > 0 || len(s.privateInvites) > 0 {
+			reader := NewTelegramReader(s.cfg.Telegram, s.telegramChannels, s.privateInvites, s.feed, msgLimit, 1)
 			reader.SetFetchInterval(s.cfg.FetchInterval)
 			s.reader = reader
 			channelCtl = reader
@@ -196,7 +224,8 @@ func (s *Server) Run(ctx context.Context) error {
 		if msgLimit <= 0 {
 			msgLimit = 15
 		}
-		xReader = NewXPublicReader(s.xAccounts, s.feed, msgLimit, len(s.telegramChannels)+1, s.cfg.XRSSInstances)
+		// X channel numbers start after all Telegram channels (public + private).
+		xReader = NewXPublicReader(s.xAccounts, s.feed, msgLimit, len(s.telegramChannels)+len(s.privateInvites)+1, s.cfg.XRSSInstances)
 		xReader.SetFetchInterval(s.cfg.FetchInterval)
 		go func() {
 			log.Println("[x] reader goroutine started")

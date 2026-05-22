@@ -70,6 +70,35 @@ jobs:
         if: matrix.goos == 'linux'
         run: sudo apt-get install -y upx-ucl
 
+      # Embed PE version info (CompanyName, FileDescription, FileVersion,
+      # …) into the Windows .exe so Defender / Kaspersky / heuristic
+      # engines don't flag an unsigned Go binary as anonymous malware.
+      # Without these resources, untouched Go binaries on Windows show
+      # up almost universally as Trojan:Win32/Wacatac.B!ml or similar.
+      - name: Generate Windows PE resources
+        if: matrix.goos == 'windows'
+        run: |
+          go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest
+          VERSION=${GITHUB_REF_NAME:-dev}
+          VER_NUM="${VERSION#v}"
+          # Strip any -dirty / -rc / commit suffix so the numeric
+          # FixedFileInfo accepts the parse. The StringFileInfo path
+          # below keeps the full original tag.
+          NUM_ONLY=$(echo "$VER_NUM" | grep -oE '^[0-9]+(\.[0-9]+)*' || echo "0.0.0")
+          V_MAJ=$(echo "$NUM_ONLY" | awk -F. '{print $1+0}')
+          V_MIN=$(echo "$NUM_ONLY" | awk -F. '{print $2+0}')
+          V_PATCH=$(echo "$NUM_ONLY" | awk -F. '{print $3+0}')
+          for d in cmd/server cmd/client; do
+            (cd "$d" && goversioninfo \
+              -ver-major="$V_MAJ" \
+              -ver-minor="$V_MIN" \
+              -ver-patch="$V_PATCH" \
+              -product-version="$VER_NUM" \
+              -file-version="$VER_NUM" \
+              -o resource_windows_amd64.syso \
+              versioninfo.json)
+          done
+
       - name: Build Server
         if: matrix.goos != 'android'
         env:
@@ -181,15 +210,20 @@ jobs:
 
       - name: Install gomobile
         run: |
+          # gomobile init expects $ANDROID_HOME (and $ANDROID_NDK_HOME)
+          # to point at a real SDK + NDK. ubuntu-latest sets these as
+          # runner-process env vars (ANDROID_HOME, ANDROID_NDK_LATEST_HOME).
+          # Re-export ANDROID_NDK_HOME because gomobile reads that name.
+          export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$ANDROID_NDK_LATEST_HOME}"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
           go install golang.org/x/mobile/cmd/gomobile@latest
           go install golang.org/x/mobile/cmd/gobind@latest
           gomobile init
 
       - name: Build gomobile AAR
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_HOME }}
-          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
         run: |
+          export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$ANDROID_NDK_LATEST_HOME}"
           VERSION=${GITHUB_REF_NAME:-dev}
           COMMIT=$(git rev-parse --short HEAD)
           DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)

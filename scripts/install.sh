@@ -250,6 +250,43 @@ setup_x_accounts() {
     mv "$DATA_DIR/x_accounts.txt.tmp" "$DATA_DIR/x_accounts.txt"
 }
 
+setup_private_channels() {
+    echo -e "\n${green}Setting up private Telegram channel invites...${plain}"
+    echo -e "${yellow}Private channels require the server to be logged into Telegram.${plain}"
+    echo -e "${yellow}Paste each invite link in any of these shapes:${plain}"
+    echo "  https://t.me/+aBcDeF123456    https://t.me/joinchat/aBcDeF123456"
+    echo "  tg://join?invite=aBcDeF…       +aBcDeF123456    aBcDeF123456"
+    {
+        echo "# Telegram private-channel invite links (one per line)"
+        echo "# Server must be logged into Telegram for these to work."
+        echo "# Lines starting with # are comments"
+    } > "$DATA_DIR/private_channels.txt.tmp"
+
+    echo ""
+    echo -e "${yellow}Enter invite links (one per line, empty line to finish):${plain}"
+    local added=0
+    while true; do
+        read -rp "  Invite: " link
+        if [[ -z "$link" ]]; then
+            break
+        fi
+        # Early reject for obvious public-username typos. Strict
+        # validation happens server-side in ParseInviteHash.
+        if [[ "$link" =~ ^https?://t\.me/[^+] ]] && [[ ! "$link" =~ /joinchat/ ]]; then
+            echo -e "  ${red}Skipped: ${link} looks like a public username, not an invite link.${plain}"
+            echo -e "  ${red}Put public channels in channels.txt instead.${plain}"
+            continue
+        fi
+        echo "$link" >> "$DATA_DIR/private_channels.txt.tmp"
+        echo -e "  ${green}Added ${link}${plain}"
+        added=$((added + 1))
+    done
+    mv "$DATA_DIR/private_channels.txt.tmp" "$DATA_DIR/private_channels.txt"
+    if [[ $added -eq 0 ]]; then
+        echo -e "  ${yellow}(none added)${plain}"
+    fi
+}
+
 # Helper: update or add a key=value in the env file
 env_set() {
     local key="$1" val="$2"
@@ -299,6 +336,25 @@ setup_config() {
         fi
     else
         setup_x_accounts
+    fi
+
+    # --- Private Telegram channels ---
+    # Skipped in --no-telegram mode (joining needs a logged-in session).
+    if [[ "${THEFEED_NO_TELEGRAM:-}" != "1" ]]; then
+        if [[ -f "$DATA_DIR/private_channels.txt" ]]; then
+            local pc_count
+            pc_count=$(grep -cv '^#\|^$' "$DATA_DIR/private_channels.txt" 2>/dev/null || echo 0)
+            echo -e "${yellow}Private channel invites configured: ${pc_count}${plain}"
+            read -rp "Change private channel invites? [y/N]: " change_pc
+            if [[ "$change_pc" == "y" || "$change_pc" == "Y" ]]; then
+                setup_private_channels
+            fi
+        else
+            read -rp "Add private channel invite links? [y/N]: " add_pc
+            if [[ "$add_pc" == "y" || "$add_pc" == "Y" ]]; then
+                setup_private_channels
+            fi
+        fi
     fi
 
     # --- Server settings ---
@@ -724,6 +780,7 @@ show_usage() {
     echo -e "│  All data in: ${blue}${INSTALL_DIR}/${plain}                             │"
     echo -e "│  ${blue}Config:${plain}   ${DATA_DIR}/thefeed.env                │"
     echo -e "│  ${blue}Channels:${plain} ${DATA_DIR}/channels.txt               │"
+    echo -e "│  ${blue}Private:${plain}  ${DATA_DIR}/private_channels.txt       │"
     echo -e "│  ${blue}X acct:${plain}  ${DATA_DIR}/x_accounts.txt              │"
     echo -e "│  ${blue}Session:${plain}  ${DATA_DIR}/session.json               │"
     echo -e "│  ${blue}Binary:${plain}   ${INSTALL_DIR}/thefeed-server                  │"
