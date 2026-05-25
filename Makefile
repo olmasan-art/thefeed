@@ -1,5 +1,6 @@
 .PHONY: all build build-server build-client test clean lint fmt vet \
 	ios-bind ios-bind-catalyst ios-build ios-test ios-clean ios-list-sims ios-deps \
+	mac-dmg mac-app mac-clean \
 	push push-tags release setup-remotes
 
 BINARY_SERVER = thefeed-server
@@ -183,6 +184,107 @@ android-apk: android-bind
 android-clean:
 	rm -f $(ANDROID_AAR)
 	rm -rf android/app/build android/build android/.gradle
+
+# ===== macOS .app + .dmg =====
+# Drag-install bundle so non-CLI Mac users can launch thefeed-client
+# from Finder. The .app wraps a universal (amd64 + arm64) Go binary;
+# Finder launches a tiny bash shim that picks a stable per-user data
+# dir (Finder launches set cwd=/, so the binary's default ./thefeeddata
+# would otherwise land at the filesystem root).
+# Unsigned: first run needs right-click → Open, or
+#   xattr -dr com.apple.quarantine /Applications/Thefeed.app
+# to clear Gatekeeper. macOS-only — needs lipo, hdiutil, sips, iconutil.
+
+MAC_APP        = $(BUILD_DIR)/Thefeed.app
+MAC_DMG        = $(BUILD_DIR)/thefeed-macos-$(VERSION).dmg
+MAC_ICONSET    = $(BUILD_DIR)/Thefeed.iconset
+MAC_ICON_PNG   = ios/Thefeed/Assets.xcassets/AppIcon.appiconset/image.png
+MAC_SHORT_VER  = $(patsubst v%,%,$(VERSION))
+
+mac-app:
+	@command -v lipo >/dev/null 2>&1 || { echo "lipo not found — macOS-only target"; exit 1; }
+	@mkdir -p $(BUILD_DIR)
+	# Per-arch client binaries. The AssetTemplate keeps the in-app
+	# update prompt pointing at the right published artifact.
+	GOOS=darwin GOARCH=amd64 go build $(call CLIENT_GOFLAGS,thefeed-client-{V}-darwin-amd64) -o $(BUILD_DIR)/thefeed-client-darwin-amd64 ./cmd/client
+	GOOS=darwin GOARCH=arm64 go build $(call CLIENT_GOFLAGS,thefeed-client-{V}-darwin-arm64) -o $(BUILD_DIR)/thefeed-client-darwin-arm64 ./cmd/client
+	# Fuse into one universal slice so a single .app runs on Intel
+	# and Apple Silicon.
+	rm -rf $(MAC_APP)
+	mkdir -p $(MAC_APP)/Contents/MacOS $(MAC_APP)/Contents/Resources
+	lipo -create -output $(MAC_APP)/Contents/MacOS/thefeed-client \
+		$(BUILD_DIR)/thefeed-client-darwin-amd64 \
+		$(BUILD_DIR)/thefeed-client-darwin-arm64
+	# Launcher shim — Finder runs Contents/MacOS/<CFBundleExecutable>,
+	# i.e. ./Thefeed, which is this script. It sets a stable per-user
+	# data dir and execs the real Go binary alongside it.
+	@printf '%s\n' \
+		'#!/bin/bash' \
+		'DIR="$$(cd "$$(dirname "$$0")" && pwd)"' \
+		'DATA="$$HOME/Library/Application Support/Thefeed"' \
+		'mkdir -p "$$DATA"' \
+		'exec "$$DIR/thefeed-client" --data-dir "$$DATA" "$$@"' \
+		> $(MAC_APP)/Contents/MacOS/Thefeed
+	chmod +x $(MAC_APP)/Contents/MacOS/Thefeed
+	# Minimal Info.plist. NSHighResolutionCapable=true so the Dock
+	# icon renders crisp on Retina; no LSUIElement because the user's
+	# only kill-switch is the Dock right-click → Force Quit (no Cocoa
+	# event loop means no Cmd+Q).
+	@printf '%s\n' \
+		'<?xml version="1.0" encoding="UTF-8"?>' \
+		'<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+		'<plist version="1.0">' \
+		'<dict>' \
+		'    <key>CFBundleName</key><string>Thefeed</string>' \
+		'    <key>CFBundleDisplayName</key><string>Thefeed</string>' \
+		'    <key>CFBundleExecutable</key><string>Thefeed</string>' \
+		'    <key>CFBundleIdentifier</key><string>com.sartoopjj.thefeed</string>' \
+		'    <key>CFBundleVersion</key><string>$(MAC_SHORT_VER)</string>' \
+		'    <key>CFBundleShortVersionString</key><string>$(MAC_SHORT_VER)</string>' \
+		'    <key>CFBundlePackageType</key><string>APPL</string>' \
+		'    <key>CFBundleIconFile</key><string>AppIcon</string>' \
+		'    <key>LSMinimumSystemVersion</key><string>11.0</string>' \
+		'    <key>NSHighResolutionCapable</key><true/>' \
+		'</dict>' \
+		'</plist>' \
+		> $(MAC_APP)/Contents/Info.plist
+	# Build AppIcon.icns from the existing 1024×1024 iOS icon so the
+	# Dock and Finder don't fall back to the generic exec icon.
+	# sips + iconutil are macOS-only; skip the icon if either is missing.
+	@if [ -f "$(MAC_ICON_PNG)" ] && command -v sips >/dev/null 2>&1 && command -v iconutil >/dev/null 2>&1; then \
+		rm -rf $(MAC_ICONSET); \
+		mkdir -p $(MAC_ICONSET); \
+		sips -z 16   16   "$(MAC_ICON_PNG)" --out "$(MAC_ICONSET)/icon_16x16.png"       >/dev/null; \
+		sips -z 32   32   "$(MAC_ICON_PNG)" --out "$(MAC_ICONSET)/icon_16x16@2x.png"    >/dev/null; \
+		sips -z 32   32   "$(MAC_ICON_PNG)" --out "$(MAC_ICONSET)/icon_32x32.png"       >/dev/null; \
+		sips -z 64   64   "$(MAC_ICON_PNG)" --out "$(MAC_ICONSET)/icon_32x32@2x.png"    >/dev/null; \
+		sips -z 128  128  "$(MAC_ICON_PNG)" --out "$(MAC_ICONSET)/icon_128x128.png"     >/dev/null; \
+		sips -z 256  256  "$(MAC_ICON_PNG)" --out "$(MAC_ICONSET)/icon_128x128@2x.png"  >/dev/null; \
+		sips -z 256  256  "$(MAC_ICON_PNG)" --out "$(MAC_ICONSET)/icon_256x256.png"     >/dev/null; \
+		sips -z 512  512  "$(MAC_ICON_PNG)" --out "$(MAC_ICONSET)/icon_256x256@2x.png"  >/dev/null; \
+		sips -z 512  512  "$(MAC_ICON_PNG)" --out "$(MAC_ICONSET)/icon_512x512.png"     >/dev/null; \
+		sips -z 1024 1024 "$(MAC_ICON_PNG)" --out "$(MAC_ICONSET)/icon_512x512@2x.png"  >/dev/null; \
+		iconutil -c icns "$(MAC_ICONSET)" -o "$(MAC_APP)/Contents/Resources/AppIcon.icns"; \
+		rm -rf $(MAC_ICONSET); \
+	else \
+		echo "sips/iconutil unavailable — shipping .app without custom icon"; \
+	fi
+	@echo "Built $(MAC_APP)"
+
+mac-dmg: mac-app
+	@command -v hdiutil >/dev/null 2>&1 || { echo "hdiutil not found — macOS-only target"; exit 1; }
+	@rm -f $(MAC_DMG)
+	@staging=$(BUILD_DIR)/dmg-staging; \
+	rm -rf $$staging; mkdir -p $$staging; \
+	cp -R $(MAC_APP) $$staging/; \
+	ln -s /Applications $$staging/Applications; \
+	hdiutil create -volname "Thefeed $(MAC_SHORT_VER)" -srcfolder $$staging -ov -format UDZO $(MAC_DMG); \
+	rm -rf $$staging
+	@echo "Built $(MAC_DMG)"
+
+mac-clean:
+	rm -rf $(MAC_APP) $(BUILD_DIR)/dmg-staging $(MAC_ICONSET)
+	rm -f  $(BUILD_DIR)/thefeed-macos-*.dmg
 
 # ===== Git multi-remote =====
 # We maintain two mirrors: origin (GitLab) and gh-origin (GitHub).

@@ -434,6 +434,26 @@ All configuration, cache, and data files are stored in the data directory.
 
 The **concurrent requests (scatter)** setting and all other profile options (resolvers, rate limit, query mode, timeout) are configured through the web UI profile editor, not CLI flags.
 
+#### macOS (.app / .dmg)
+
+Each release ships a universal `thefeed-macos-<version>.dmg` that bundles the client into a drag-install `Thefeed.app`. Same binary works on Intel and Apple Silicon. The app starts the local web UI and opens your browser; data is persisted under `~/Library/Application Support/Thefeed`.
+
+The DMG is unsigned, so the first launch needs one of:
+
+```bash
+# A) right-click → Open in Finder once (Gatekeeper prompt clears the
+#    quarantine flag for future launches)
+# B) clear it from the terminal
+xattr -dr com.apple.quarantine /Applications/Thefeed.app
+```
+
+To build locally on macOS:
+
+```bash
+make mac-dmg
+# → build/Thefeed.app  +  build/thefeed-macos-<version>.dmg
+```
+
 #### Android (Termux)
 
 ```bash

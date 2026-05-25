@@ -360,8 +360,41 @@ jobs:
           name: thefeed-ios-ipa
           path: build/thefeed-ios-*-unsigned.ipa
 
+  macos-dmg:
+    needs: test
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+      - name: Cache Go build
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/go-build
+          key: gobuild-macos-dmg-${{ hashFiles('**/go.sum') }}
+          restore-keys: gobuild-macos-dmg-
+
+      # `make mac-dmg` does the heavy lifting (universal binary via
+      # lipo, .app bundle, .icns from the iOS icon, hdiutil DMG).
+      # macos-14 runners ship Xcode tools, so lipo/sips/iconutil/
+      # hdiutil are all on PATH.
+      - name: Build macOS DMG
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          make mac-dmg VERSION="${VERSION}"
+          ls -lh build/thefeed-macos-*.dmg
+
+      - name: Upload macOS DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: thefeed-macos-dmg
+          path: build/thefeed-macos-*.dmg
+
   release:
-    needs: [build, android-apk, ios-ipa]
+    needs: [build, android-apk, ios-ipa, macos-dmg]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
@@ -387,6 +420,7 @@ jobs:
             | Linux | arm64 | [server-سرور](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/thefeed-server-linux-arm64) / [client-کلاینت](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/thefeed-client-${{ github.ref_name }}-linux-arm64) |
             | macOS | amd64 (Intel) | [server-سرور](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/thefeed-server-darwin-amd64) / [client-کلاینت](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/thefeed-client-${{ github.ref_name }}-darwin-amd64) |
             | macOS | arm64 (Apple Silicon) | [server-سرور](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/thefeed-server-darwin-arm64) / [client-کلاینت](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/thefeed-client-${{ github.ref_name }}-darwin-arm64) |
+            | macOS | universal `.dmg` (drag-install, **recommended**) | [thefeed-macos-${{ github.ref_name }}.dmg - مک (نصب با کشیدن، توصیه‌شده)](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/thefeed-macos-${{ github.ref_name }}.dmg) |
             | FreeBSD | amd64 | [server-سرور](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/thefeed-server-freebsd-amd64) / [client-کلاینت](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/thefeed-client-${{ github.ref_name }}-freebsd-amd64) |
             | FreeBSD | arm64 | [server-سرور](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/thefeed-server-freebsd-arm64) / [client-کلاینت](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/thefeed-client-${{ github.ref_name }}-freebsd-arm64) |
             | Windows | amd64 | [server-سرور](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/thefeed-server-windows-amd64.exe) / [client-کلاینت](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/thefeed-client-${{ github.ref_name }}-windows-amd64.exe) |
@@ -398,3 +432,5 @@ jobs:
             | iOS (unsigned) | universal | [thefeed-ios-${{ github.ref_name }}-unsigned.ipa](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/thefeed-ios-${{ github.ref_name }}-unsigned.ipa) |
 
             **iOS / iPadOS (preview, iOS 14+):** the `.ipa` is unsigned. Re-sign it with your own Apple ID and provisioning profile (AltStore, Sideloadly, or `xcrun altool` upload to your own TestFlight). It will not install directly from a download.
+
+            **macOS `.dmg` (preview, macOS 11+):** universal binary (Intel + Apple Silicon), unsigned. After dragging Thefeed.app into Applications, the first launch needs right-click → Open, or run `xattr -dr com.apple.quarantine /Applications/Thefeed.app` to clear Gatekeeper. CLI users can still grab the bare `thefeed-server` / `thefeed-client` binaries above.
