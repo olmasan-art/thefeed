@@ -350,6 +350,8 @@ sudo netfilter-persistent save
 
 از صفحه [Releases](https://github.com/sartoopjj/thefeed/releases) فایل `thefeed-macos-<version>.dmg` را دانلود کنید. این یک فایل یونیورسال است (هم اینتل و هم Apple Silicon) و شامل `Thefeed.app` می‌شود. آن را داخل پوشه‌ی Applications بکشید، روی آیکن کلیک کنید — مرورگر شما به‌صورت خودکار باز می‌شود و وب‌یوآی ظاهر می‌شود. داده‌ها زیر `~/Library/Application Support/Thefeed` ذخیره می‌شوند.
 
+وقتی برنامه در حال اجراست، یک آیتم به اسم **Thefeed** در نوار منوی بالای صفحه (سمت راست) ظاهر می‌شود — از آنجا می‌توانید **Open Thefeed** برای باز کردن مجدد مرورگر یا **Quit Thefeed** برای خاموش کردن کامل سرور را انتخاب کنید. لاگ سرور در فایل `~/Library/Application Support/Thefeed/launcher.log` ذخیره می‌شود.
+
 چون فایل امضاء (sign) نشده، در اولین اجرا macOS مانع می‌شود. یکی از دو راه:
 
 ```bash

@@ -436,7 +436,7 @@ The **concurrent requests (scatter)** setting and all other profile options (res
 
 #### macOS (.app / .dmg)
 
-Each release ships a universal `thefeed-macos-<version>.dmg` that bundles the client into a drag-install `Thefeed.app`. Same binary works on Intel and Apple Silicon. The app starts the local web UI and opens your browser; data is persisted under `~/Library/Application Support/Thefeed`.
+Each release ships a universal `thefeed-macos-<version>.dmg` that bundles the client into a drag-install `Thefeed.app`. Same binary works on Intel and Apple Silicon. The app starts the local web UI and opens your browser; data is persisted under `~/Library/Application Support/Thefeed`. Once running it appears as a "Thefeed" item in the menu bar (top-right of the screen) with **Open Thefeed** and **Quit Thefeed** entries — that's the clean way to stop the server. The child process's logs go to `~/Library/Application Support/Thefeed/launcher.log` for debugging.
 
 The DMG is unsigned, so the first launch needs one of:
 

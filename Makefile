@@ -215,17 +215,19 @@ mac-app:
 	lipo -create -output $(MAC_APP)/Contents/MacOS/thefeed-client \
 		$(BUILD_DIR)/thefeed-client-darwin-amd64 \
 		$(BUILD_DIR)/thefeed-client-darwin-arm64
-	# Launcher shim — Finder runs Contents/MacOS/<CFBundleExecutable>,
-	# i.e. ./Thefeed, which is this script. It sets a stable per-user
-	# data dir and execs the real Go binary alongside it.
-	@printf '%s\n' \
-		'#!/bin/bash' \
-		'DIR="$$(cd "$$(dirname "$$0")" && pwd)"' \
-		'DATA="$$HOME/Library/Application Support/Thefeed"' \
-		'mkdir -p "$$DATA"' \
-		'exec "$$DIR/thefeed-client" --data-dir "$$DATA" "$$@"' \
-		> $(MAC_APP)/Contents/MacOS/Thefeed
-	chmod +x $(MAC_APP)/Contents/MacOS/Thefeed
+	# Cocoa launcher — Finder runs Contents/MacOS/<CFBundleExecutable>
+	# (= ./Thefeed). A bash shim works to exec the Go binary, but
+	# without an NSApplication event loop macOS leaves the Dock icon
+	# bouncing forever and never paints the running-dot. mac/Thefeed.swift
+	# is a tiny NSApplication that spawns thefeed-client as a child and
+	# adds a status-bar Open/Quit menu — compile per-arch and lipo into
+	# a universal launcher.
+	@command -v swiftc >/dev/null 2>&1 || { echo "swiftc not found — install Xcode Command Line Tools"; exit 1; }
+	swiftc -O -target x86_64-apple-macos11 -o $(BUILD_DIR)/Thefeed-launcher-amd64 mac/Thefeed.swift
+	swiftc -O -target arm64-apple-macos11  -o $(BUILD_DIR)/Thefeed-launcher-arm64 mac/Thefeed.swift
+	lipo -create -output $(MAC_APP)/Contents/MacOS/Thefeed \
+		$(BUILD_DIR)/Thefeed-launcher-amd64 \
+		$(BUILD_DIR)/Thefeed-launcher-arm64
 	# Minimal Info.plist. NSHighResolutionCapable=true so the Dock
 	# icon renders crisp on Retina; no LSUIElement because the user's
 	# only kill-switch is the Dock right-click → Force Quit (no Cocoa
@@ -285,6 +287,7 @@ mac-dmg: mac-app
 mac-clean:
 	rm -rf $(MAC_APP) $(BUILD_DIR)/dmg-staging $(MAC_ICONSET)
 	rm -f  $(BUILD_DIR)/thefeed-macos-*.dmg
+	rm -f  $(BUILD_DIR)/Thefeed-launcher-amd64 $(BUILD_DIR)/Thefeed-launcher-arm64
 
 # ===== Git multi-remote =====
 # We maintain two mirrors: origin (GitLab) and gh-origin (GitHub).
