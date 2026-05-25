@@ -124,6 +124,14 @@ func AssetFilename(latest string) string {
 		// users who installed the APK should update the APK.
 		tmpl = androidAPKTemplate()
 	}
+	if isMacApp() {
+		// Same idea on macOS: a user who installed via DMG should be
+		// pointed at the next DMG, not at a bare binary they'd have
+		// to launch from Terminal. Overrides the build-time template
+		// because the .app bundles the same darwin binary the CLI
+		// users download — only the runtime context differs.
+		tmpl = macAppTemplate()
+	}
 	if tmpl == "" {
 		tmpl = defaultTemplate()
 	}
@@ -222,6 +230,36 @@ func androidAPKTemplate() string {
 		abi = "arm64-v8a"
 	}
 	return "thefeed-android-{V}-" + abi + ".apk"
+}
+
+// isMacApp returns true when this binary is running inside the macOS
+// .app bundle shipped via the DMG. The Cocoa launcher (mac/Thefeed.swift)
+// spawns thefeed-client from Contents/MacOS/, so the executable path
+// always contains ".app/Contents/MacOS/". Standalone CLI users on
+// darwin (downloaded the bare thefeed-client-{V}-darwin-* binary) have
+// no such path component and fall through to the build-time template.
+func isMacApp() bool {
+	if runtime.GOOS != "darwin" {
+		return false
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return false
+	}
+	return isMacAppPath(exe)
+}
+
+// isMacAppPath is the path-only half of isMacApp, split out for tests
+// so they don't depend on the test binary's actual location.
+func isMacAppPath(p string) bool {
+	return strings.Contains(p, ".app/Contents/MacOS/")
+}
+
+// macAppTemplate returns the asset name for the DMG bundle at version
+// "{V}". The .app inside the DMG is universal (lipo'd amd64+arm64), so
+// — unlike Android — we don't need to vary by GOARCH.
+func macAppTemplate() string {
+	return "thefeed-macos-{V}.dmg"
 }
 
 // defaultTemplate is the fallback used when AssetTemplate wasn't

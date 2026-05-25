@@ -119,6 +119,49 @@ func TestFetchLatestTag_RejectsNonRedirect(t *testing.T) {
 	}
 }
 
+func TestMacAppTemplate(t *testing.T) {
+	// DMG is universal (lipo'd arm64+amd64), so the template never
+	// varies by GOARCH unlike the Android one.
+	if got, want := macAppTemplate(), "thefeed-macos-{V}.dmg"; got != want {
+		t.Errorf("macAppTemplate() = %q, want %q", got, want)
+	}
+}
+
+func TestIsMacAppPath(t *testing.T) {
+	cases := []struct {
+		p    string
+		want bool
+	}{
+		// Real-world install paths.
+		{"/Applications/Thefeed.app/Contents/MacOS/thefeed-client", true},
+		{"/Users/alice/Downloads/Thefeed.app/Contents/MacOS/thefeed-client", true},
+		// Standalone CLI binaries (Homebrew, manual download, $GOPATH).
+		{"/usr/local/bin/thefeed-client", false},
+		{"/tmp/thefeed-client-v0.20.0-darwin-arm64", false},
+		// .app dir but executable is outside Contents/MacOS/ — not us.
+		{"/Applications/Other.app/Contents/Resources/helper", false},
+		// Empty / odd inputs shouldn't panic and shouldn't match.
+		{"", false},
+	}
+	for _, c := range cases {
+		if got := isMacAppPath(c.p); got != c.want {
+			t.Errorf("isMacAppPath(%q) = %v, want %v", c.p, got, c.want)
+		}
+	}
+}
+
+// On non-darwin platforms isMacApp must always return false so the
+// build-time template (or defaultTemplate fallback) wins. This guards
+// against an accidental refactor that drops the GOOS check.
+func TestIsMacApp_NonDarwin(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("test asserts non-darwin behavior")
+	}
+	if isMacApp() {
+		t.Errorf("isMacApp() = true on %s, want false", runtime.GOOS)
+	}
+}
+
 // Location must contain /tag/{V}; otherwise we have no way to know
 // the version and should report an error rather than guess.
 func TestFetchLatestTag_RejectsMalformedLocation(t *testing.T) {
