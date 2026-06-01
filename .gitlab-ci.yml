@@ -1,7 +1,8 @@
 # thefeed — GitLab CI pipeline (mirrors .github/workflows/build.yml)
 #
 # Triggers ONLY on annotated tags v* — branches and MRs do not run the
-# pipeline. A pre-release is detected by a hyphen in the tag (v1.0.0-rc1,
+# pipeline. Release-candidate tags (-rc) are excluded here and built on
+# GitHub only. A pre-release is detected by a hyphen in the tag (e.g.
 # v1.0.0-beta2), matching the GitHub workflow's
 # `prerelease: contains(github.ref_name, '-')` behaviour. The Release on
 # GitLab gets its name prefixed with "Pre-release: " and the description
@@ -48,9 +49,13 @@ variables:
 
 # Tag-only pipeline. Pushing to a branch or opening an MR does not trigger
 # a build — the only event that matters is `git push --tags`.
+#
+# Release-candidate tags (e.g. v1.0.0-rc1) are intentionally skipped on
+# GitLab: RC builds are produced on GitHub only. Final releases and any
+# non-rc pre-releases (e.g. -beta) still run here.
 workflow:
   rules:
-    - if: '$CI_COMMIT_TAG =~ /^v/'
+    - if: '$CI_COMMIT_TAG =~ /^v/ && $CI_COMMIT_TAG !~ /-rc/'
 
 # ---------- shared bases ----------
 
