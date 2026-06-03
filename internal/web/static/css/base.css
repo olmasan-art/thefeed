@@ -6,6 +6,23 @@
       font-display: swap
     }
 
+    /* Custom SVG icons (see js/icons.js). Inline-size to the surrounding text so
+       they replace the old emoji glyphs 1:1 regardless of the SVG's own
+       width/height attributes. */
+    .icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      vertical-align: -0.125em;
+      line-height: 0;
+    }
+
+    .icon svg {
+      width: 1.15em;
+      height: 1.15em;
+      display: block;
+    }
+
     :root {
       --bg: #17212b;
       --bg2: #0e1621;
