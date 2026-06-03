@@ -30,7 +30,7 @@
     }
 
     .settings-panel {
-      animation: fadeIn 120ms ease-out
+      animation: fadeIn var(--motion) var(--ease)
     }
 
     @keyframes fadeIn {
