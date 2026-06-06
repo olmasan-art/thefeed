@@ -13,6 +13,7 @@ import android.os.PowerManager
 import android.net.Uri
 import android.provider.Settings
 import android.text.InputType
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -263,6 +264,23 @@ class MainActivity : ComponentActivity() {
                     handler.postDelayed({ waitForServerThenLoad() }, RETRY_DELAY_MS)
                 }
             }
+
+            override fun onRenderProcessGone(
+                view: WebView?,
+                detail: RenderProcessGoneDetail?
+            ): Boolean {
+                // The WebView renderer process died (OOM kill or crash — common
+                // under aggressive OEM process management, e.g. MIUI). The dead
+                // WebView can only render a blank/black surface from this point
+                // on; the default (unhandled) behavior kills the whole app.
+                // Recreate the WebView and reload instead.
+                if (view === webView) {
+                    handler.post { recreateWebView() }
+                } else {
+                    view?.destroy()
+                }
+                return true
+            }
         }
 
         // Required for confirm() / alert() / prompt() to work in WebView
@@ -309,13 +327,7 @@ class MainActivity : ComponentActivity() {
             }
 
             override fun onHideCustomView() {
-                val v = fullscreenView ?: return
-                val decor = window.decorView as android.view.ViewGroup
-                decor.removeView(v)
-                WindowCompat.getInsetsController(window, webView).show(WindowInsetsCompat.Type.systemBars())
-                fullscreenView = null
-                fullscreenCallback?.onCustomViewHidden()
-                fullscreenCallback = null
+                hideFullscreenView()
             }
         }
 
@@ -388,6 +400,37 @@ class MainActivity : ComponentActivity() {
     private fun getCurrentPort(): Int {
         val prefs = getSharedPreferences(ThefeedService.PREFS_NAME, Context.MODE_PRIVATE)
         return prefs.getInt(ThefeedService.PREF_PORT, -1)
+    }
+
+    // Exits HTML5 video fullscreen: removes the overlay view, restores the
+    // system bars, and notifies the WebView. Safe to call when not fullscreen.
+    private fun hideFullscreenView() {
+        val v = fullscreenView ?: return
+        val decor = window.decorView as android.view.ViewGroup
+        decor.removeView(v)
+        WindowCompat.getInsetsController(window, webView).show(WindowInsetsCompat.Type.systemBars())
+        fullscreenView = null
+        fullscreenCallback?.onCustomViewHidden()
+        fullscreenCallback = null
+    }
+
+    // Replaces a WebView whose renderer process died with a fresh instance
+    // (same id, position, and layout params) and restarts the load cycle.
+    private fun recreateWebView() {
+        // Drop any orphaned fullscreen video overlay from the dead renderer
+        hideFullscreenView()
+        val parent = webView.parent as? android.view.ViewGroup ?: return
+        val index = parent.indexOfChild(webView)
+        val params = webView.layoutParams
+        val wasVisible = webView.visibility
+        parent.removeView(webView)
+        webView.destroy()
+        webView = WebView(this)
+        webView.id = R.id.webView
+        webView.visibility = wasVisible
+        parent.addView(webView, index, params)
+        configureWebView()
+        if (!lockScreenVisible) waitForServerThenLoad()
     }
 
     override fun onDestroy() {
