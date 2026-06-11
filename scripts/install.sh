@@ -943,6 +943,9 @@ install_thefeed() {
     echo -e "${green}  thefeed ${version} installed successfully!${plain}"
     echo -e "${green}═══════════════════════════════════════${plain}"
     show_usage
+
+    # Print the import URI so the operator can share/import the feed right away.
+    show_config
 }
 
 login_only() {
