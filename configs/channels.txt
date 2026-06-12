@@ -1,6 +1,10 @@
 # Telegram channel usernames (one per line, with or without @)
 # Channel numbers are assigned in order: first = channel 1, second = channel 2, etc.
 # Lines starting with # are comments
+@Cafinetkhoy
+@lkjhgfdsa8520zcbmxvn
+@akhbar_cafenet
+@vpnmaan
 @networkti
 @thefeedconfig
 @VahidOnline
